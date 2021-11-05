@@ -1,66 +1,77 @@
+// Package traefikplugins
 // Package plugindemo a demo plugin.
 package traefikplugins
 
 import (
-	"bytes"
 	"context"
-	"fmt"
+	"encoding/json"
 	"net/http"
-	"text/template"
+
+	"github.com/juetun/traefikplugins/logic"
+	"github.com/juetun/traefikplugins/pkg"
 )
 
-// Config the plugin configuration.
-type Config struct {
-	Headers map[string]string `json:"headers,omitempty"`
+// TRaeFikJueTun 网站插件
+type TRaeFikJueTun struct {
+	Next         http.Handler
+	PluginConfig *logic.Config
+	Name         string
+	Ctx          context.Context
 }
 
 // CreateConfig creates the default plugin configuration.
-func CreateConfig() *Config {
-	return &Config{
+func CreateConfig() *logic.Config {
+	return &logic.Config{
 		Headers: make(map[string]string),
 	}
 }
 
-// Demo a Demo plugin.
-type Demo struct {
-	next     http.Handler
-	headers  map[string]string
-	name     string
-	template *template.Template
-}
-
 // New created a new Demo plugin.
-func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
-	if len(config.Headers) == 0 {
-		return nil, fmt.Errorf("headers cannot be empty")
+func New(ctx context.Context, next http.Handler, config *logic.Config, name string) (httpHandler http.Handler, err error) {
+	httpHandler = &TRaeFikJueTun{
+		Ctx:          ctx,
+		PluginConfig: config,
+		Next:         next,
+		Name:         name,
 	}
-
-	return &Demo{
-		headers:  config.Headers,
-		next:     next,
-		name:     name,
-		template: template.New("demo").Delims("[[", "]]"),
-	}, nil
+	return
+}
+func (r *TRaeFikJueTun) ToJsonString() (res string, err error) {
+	var configBt []byte
+	if configBt, err = json.Marshal(r.PluginConfig); err != nil {
+		return
+	}
+	res = string(configBt)
+	return
 }
 
-func (a *Demo) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	for key, value := range a.headers {
-		tmpl, err := a.template.Parse(value)
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		writer := &bytes.Buffer{}
-
-		err = tmpl.Execute(writer, req)
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		req.Header.Set(key, writer.String())
+func (r *TRaeFikJueTun) ServeHTTP(response http.ResponseWriter, request *http.Request) {
+	switch r.PluginConfig.RouterType {
+	case pkg.RouteTypeAdmin:
+		logic.NewRouteTypeAdminLogic(logic.OptionsAdminHandlerBase(r.getBaseLogic(response, request))).
+			Run()
+	case pkg.RouteTypeIntranet:
+		logic.NewRouteTypeIntranetLogic(logic.OptionsIntranetHandlerBase(r.getBaseLogic(response, request))).
+			Run()
+	case pkg.RouteTypeOuternet:
+		logic.NewRouteTypeOuternetLogic(logic.OptionsOuternetHandlerBase(r.getBaseLogic(response, request))).
+			Run()
+	case pkg.RouteTypePage:
+		logic.NewRouteTypePageLogic(logic.OptionsPageHandlerBase(r.getBaseLogic(response, request))).
+			Run()
+	default:
+		r.Next.ServeHTTP(response, request)
 	}
+}
 
-	a.next.ServeHTTP(rw, req)
+func (r *TRaeFikJueTun) getBaseLogic(response http.ResponseWriter, request *http.Request) (base *logic.RouteTypeBaseLogic) {
+	base = logic.NewRouteTypeBaseLogic(
+		logic.OptionsHandlerPluginCtx(r.Ctx),
+		logic.OptionsHandlerPluginName(r.Name),
+		logic.OptionsHandlerPluginConfig(r.PluginConfig),
+		logic.OptionsHandlerNext(r.Next),
+		logic.OptionsHandlerRequest(request),
+		logic.OptionsHandlerResponse(response),
+	)
+	return
 }
