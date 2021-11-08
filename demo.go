@@ -48,17 +48,29 @@ func (r *TRaeFikJueTun) ToJsonString() (res string, err error) {
 func (r *TRaeFikJueTun) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	switch r.PluginConfig.RouterType {
 	case pkg.RouteTypeAdmin:
-		logic.NewRouteTypeAdminLogic(logic.OptionsAdminHandlerBase(r.getBaseLogic(response, request))).
-			Run()
+		logicOp := logic.NewRouteTypeAdminLogic(logic.OptionsAdminHandlerBase(r.getBaseLogic(response, request)))
+		if exit := logicOp.CommonLogic(); exit {
+			return
+		}
+		logicOp.Run()
 	case pkg.RouteTypeIntranet:
-		logic.NewRouteTypeIntranetLogic(logic.OptionsIntranetHandlerBase(r.getBaseLogic(response, request))).
-			Run()
+		logicOp := logic.NewRouteTypeIntranetLogic(logic.OptionsIntranetHandlerBase(r.getBaseLogic(response, request)))
+		if exit := logicOp.CommonLogic(); exit {
+			return
+		}
+		logicOp.Run()
 	case pkg.RouteTypeOuternet:
-		logic.NewRouteTypeOuternetLogic(logic.OptionsOuternetHandlerBase(r.getBaseLogic(response, request))).
-			Run()
+		logicOp := logic.NewRouteTypeOuternetLogic(logic.OptionsOuternetHandlerBase(r.getBaseLogic(response, request)))
+		if exit := logicOp.CommonLogic(); exit {
+			return
+		}
+		logicOp.Run()
 	case pkg.RouteTypePage:
-		logic.NewRouteTypePageLogic(logic.OptionsPageHandlerBase(r.getBaseLogic(response, request))).
-			Run()
+		logicOp := logic.NewRouteTypePageLogic(logic.OptionsPageHandlerBase(r.getBaseLogic(response, request)))
+		if exit := logicOp.CommonLogic(); exit {
+			return
+		}
+		logicOp.Run()
 	default:
 		r.Next.ServeHTTP(response, request)
 	}
