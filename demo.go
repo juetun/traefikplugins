@@ -9,6 +9,7 @@ import (
 
 	"github.com/juetun/traefikplugins/logic"
 	"github.com/juetun/traefikplugins/pkg"
+	"github.com/juetun/traefikplugins/pkg/permit_get"
 )
 
 // TRaeFikJueTun 网站插件
@@ -34,6 +35,11 @@ func New(ctx context.Context, next http.Handler, config *logic.Config, name stri
 		Next:         next,
 		Name:         name,
 	}
+
+	// 初始化获取权限操作对象
+	logic.GrpcGet = permit_get.NewGrpcGet()
+	logic.HttpGet = permit_get.NewHttpGet()
+
 	return
 }
 func (r *TRaeFikJueTun) ToJsonString() (res string, err error) {
@@ -46,6 +52,9 @@ func (r *TRaeFikJueTun) ToJsonString() (res string, err error) {
 }
 
 func (r *TRaeFikJueTun) ServeHTTP(response http.ResponseWriter, request *http.Request) {
+	for s, s2 := range r.PluginConfig.Headers {
+		request.Header.Set(s, s2)
+	}
 	switch r.PluginConfig.RouterType {
 	case pkg.RouteTypeAdmin:
 		logicOp := logic.NewRouteTypeAdminLogic(logic.OptionsAdminHandlerBase(r.getBaseLogic(response, request)))

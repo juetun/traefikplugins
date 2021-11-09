@@ -8,10 +8,8 @@ type (
 )
 
 func (r *RouteTypeAdminLogic) Run() {
- 	r.NextExecute()
+	r.NextExecute()
 }
-
-
 
 func OptionsAdminHandlerBase(rTBl *RouteTypeBaseLogic) OptionsAdminHandler {
 	return func(rbc *RouteTypeAdminLogic) {
