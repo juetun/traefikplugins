@@ -19,8 +19,8 @@ var (
 type (
 	Config struct {
 		PermitSupportGrpc bool              `json:"permit_support_grpc"` // 获取接口权限是否支持grpc
-		PermitValidate    string            `json:"permit_validate"`
-		AppEnv            string            `json:"app_env,omitempty"` // 运行环境
+		PermitValidate    string            `json:"permit_validate"`     // 是否需要签名验证
+		AppEnv            string            `json:"app_env,omitempty"`   // 运行环境
 		RouterType        string            `json:"router_type,omitempty"`
 		Headers           map[string]string `json:"headers,omitempty"`
 	}
@@ -68,11 +68,15 @@ func (r *RouteTypeBaseLogic) ParseUriParam() (errCode int, errMessage string) {
 	return
 }
 
+// gatewayConfigNeedSign 网关配置需要签名验证
+// func (r *RouteTypeBaseLogic) gatewayConfigNeedSign() {
+//
+// }
+
 // CommonLogic 公共的逻辑模块
 func (r *RouteTypeBaseLogic) CommonLogic() (exit bool) {
-
-	// 如果都不需要验证操作，则直接跳过
-	if r.PluginConfig.PermitValidate == "" { // 如果不需要判断签名验证
+	switch r.PluginConfig.PermitValidate {
+	case "": // 如果都不需要验证操作，则直接跳过
 		exit = true
 		http.Error(r.Response, fmt.Sprintf(pkg.MapGatewayError[pkg.GatewayErrorCodePermitConfigError], "permit_validate is null"), http.StatusInternalServerError)
 		return
