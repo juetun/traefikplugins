@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/juetun/traefikplugins/logic/sign"
 	"github.com/juetun/traefikplugins/pkg"
 )
 
 var (
-	GrpcGet pkg.PermitGet
-	HttpGet pkg.PermitGet
+	GrpcGet            pkg.PermitGet
+	HttpGet            pkg.PermitGet
+	ConfigRouterPermit pkg.RouterConfig // 当前系统支持的路由权限
 )
 
 // Config the plugin configuration.
@@ -68,10 +70,28 @@ func (r *RouteTypeBaseLogic) ParseUriParam() (errCode int, errMessage string) {
 	return
 }
 
-// gatewayConfigNeedSign 网关配置需要签名验证
-// func (r *RouteTypeBaseLogic) gatewayConfigNeedSign() {
-//
-// }
+func (r *RouteTypeBaseLogic) LoadUrlConfig() (errCode int, errMsg string) {
+
+	if r.UriParam.AppName !=  pkg.RouteTypeGateway {
+		return
+	}
+	if r.UriParam.Method != http.MethodHead {
+		errCode = pkg.GateWayLoadConfigError
+		errMsg = fmt.Sprintf(pkg.MapGatewayError[errCode], "METHOD")
+		return
+	}
+	if r.UriParam.Uri != "" {
+
+	}
+	var newConfigRouter pkg.RouterConfig
+	var lock sync.RWMutex
+	lock.Lock()
+	defer func() {
+		lock.Unlock()
+	}()
+	ConfigRouterPermit = newConfigRouter
+	return
+}
 
 // CommonLogic 公共的逻辑模块
 func (r *RouteTypeBaseLogic) CommonLogic() (exit bool) {

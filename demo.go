@@ -56,6 +56,23 @@ func (r *TRaeFikJueTun) ServeHTTP(response http.ResponseWriter, request *http.Re
 		request.Header.Set(s, s2)
 	}
 	switch r.PluginConfig.RouterType {
+	case pkg.RouteTypeGateway: // 此路径只用与更新路由规则调用
+		logicOp := logic.NewRouteTypeAdminLogic(logic.OptionsAdminHandlerBase(r.getBaseLogic(response, request)))
+		if errCode, errMsg := logicOp.LoadUrlConfig(); errCode != 0 {
+			http.Error(response, errMsg, http.StatusInternalServerError)
+			return
+		}
+		type Result struct {
+			Code int         `json:"code"`
+			Data interface{} `json:"data"`
+			Msg  string      `json:"message"`
+		}
+		var Res = Result{
+			Msg: "路由规则更新成功",
+		}
+		var bt []byte
+		bt, _ = json.Marshal(Res)
+		http.Error(response, string(bt), http.StatusOK)
 	case pkg.RouteTypeAdmin:
 		logicOp := logic.NewRouteTypeAdminLogic(logic.OptionsAdminHandlerBase(r.getBaseLogic(response, request)))
 		if exit := logicOp.CommonLogic(); exit {

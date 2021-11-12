@@ -1,6 +1,7 @@
 package pkg
 
 const (
+	RouteTypeGateway  = "gateway"
 	RouteTypeAdmin    = "admin"
 	RouteTypeIntranet = "intranet"
 	RouteTypeOuternet = "outernet"
@@ -12,7 +13,6 @@ const (
 	EnvPre  = "pre"  // 预发布环境
 	EnvProd = "prod" // 线上环境
 
-
 	HttpUserHid = "X-User-Hid" // 页面请求时的 用户ID
 
 )
@@ -22,6 +22,7 @@ const (
 	GatewayErrorCodeNotHavePermit                    // 无权限
 	GatewayErrorCodePermitConfigError                // 网关配置错误
 	GateWayPathError                                 // route路径错误
+	GateWayLoadConfigError                           // 网关加载配置参数异常
 )
 
 var (
@@ -31,6 +32,7 @@ var (
 		GatewayErrorCodeNotHavePermit:     "没有权限",
 		GatewayErrorCodePermitConfigError: "网关配置错误(%s)",
 		GateWayPathError:                  "访问路径异常(%s)",
+		GateWayLoadConfigError:            "网关加载路由配置异常(%s)",
 	}
 )
 
