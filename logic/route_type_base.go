@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"regexp"
@@ -17,10 +18,9 @@ import (
 )
 
 var (
-
 	GrpcGet pkg.PermitGet
 
-	HttpGet            pkg.PermitGet
+	HttpGet pkg.PermitGet
 
 	ConfigRouterPermit *pkg.RouterConfig // 当前系统支持的路由权限
 )
@@ -31,8 +31,7 @@ type (
 		TraefikConfigPluginName string     `json:"traefik_config_plugin_name"`
 		AppEnv                  string     `json:"appenv,omitempty"` // 运行环境
 		RouterType              string     `json:"routertype,omitempty"`
-		PermitSupperFlag        uint8      `json:"supperflag,omitempty"` // 是否客服后台权限验证
-		PathConfig              PathConfig `json:"pathconfig,omitempty"`
+ 		PathConfig              PathConfig `json:"pathconfig,omitempty"`
 	}
 	PathConfig struct {
 		Host string `json:"host,omitempty"` // 获取不需要签名验证和登录验证的接口地址调用接口来源host
@@ -50,19 +49,15 @@ type (
 
 func (r *RouteTypeBaseLogic) LoadUrlConfig() (errCode int, errMsg string) {
 
-	if r.UriParam.AppName != pkg.RouteTypeGateway {
+	if r.UriParam.Method != http.MethodGet {
+		errCode = pkg.GateWayLoadConfigError
+		errMsg = fmt.Sprintf(pkg.MapGatewayError[errCode], fmt.Sprintf("METHOD:%s", r.UriParam.Method))
 		return
 	}
 
-	if r.UriParam.Method != http.MethodHead {
+	if r.UriParam.Uri != "load_config" {
 		errCode = pkg.GateWayLoadConfigError
-		errMsg = fmt.Sprintf(pkg.MapGatewayError[errCode], "METHOD")
-		return
-	}
-
-	if r.UriParam.Uri != "/load_config" {
-		errCode = pkg.GateWayLoadConfigError
-		errMsg = fmt.Sprintf(pkg.MapGatewayError[errCode], "当前不支持你访问的接口路径")
+		errMsg = fmt.Sprintf(pkg.MapGatewayError[errCode], fmt.Sprintf("当前不支持你访问的接口路径%s", r.UriParam.Uri))
 		return
 	}
 	errCode, errMsg = r.RefreshConfigRouterPermit()
@@ -85,11 +80,13 @@ func (r *RouteTypeBaseLogic) RefreshConfigRouterPermit(appNames ...string) (errC
 
 	// 组织不需要签名的接口列表
 	for appName, item := range newConfigRouter.RouterNotNeedSign {
+		log.Printf("RouterNotNeedSignappName:%s", appName)
 		ConfigRouterPermit.RouterNotNeedSign[appName] = item
 	}
 
 	// 组织不需要登录的接口列表
 	for appName, item := range newConfigRouter.RouterNotNeedLogin {
+		log.Printf("RouterNotNeedLoginappName:%s", appName)
 		ConfigRouterPermit.RouterNotNeedLogin[appName] = item
 	}
 
@@ -139,11 +136,11 @@ func (r *RouteTypeBaseLogic) HttpGetUrlConfig(data interface{}, apps ...string) 
 	}
 	defer func() {
 		_ = logContent
-		// if err != nil {
-		// 	log.Printf("RouteTypeBaseLogicHttpGetUrlConfig:%+v\n", logContent)
-		// 	return
-		// }
-		// log.Printf("RouteTypeBaseLogicHttpGetUrlConfig:%+v\n", logContent)
+		if err != nil {
+			log.Printf("RouteTypeBaseLogicHttpGetUrlConfig:%+v\n", logContent)
+			return
+		}
+		log.Printf("RouteTypeBaseLogicHttpGetUrlConfig:%+v\n", logContent)
 	}()
 	var client = &http.Client{
 		Transport: &http.Transport{
@@ -293,11 +290,6 @@ func (r *RouteTypeBaseLogic) FlagHavePermit() (errCode int, errMsg string) {
 		}
 	}
 
-	if r.PluginConfig.PermitSupperFlag > 0 { // 获取接口需要验证的权限
-		if _, errCode, errMsg = HttpGet.Do(r.UriParam); errCode != 0 {
-			return
-		}
-	}
 
 	return
 }

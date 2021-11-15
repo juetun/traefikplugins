@@ -53,6 +53,9 @@ func New(ctx context.Context, next http.Handler, config *logic.Config, name stri
 
 // PreloadImportConfig 预状态不需要签名验证 和不需要登录的接口列表
 func (r *TRaeFikJueTun) PreloadImportConfig(config *logic.Config) (err error) {
+	if logic.ConfigRouterPermit != nil {
+		return
+	}
 	routeTypeBaseLogic := logic.RouteTypeBaseLogic{PluginConfig: config}
 	errCode, errMsg := routeTypeBaseLogic.RefreshConfigRouterPermit()
 	if errCode != 0 {
@@ -60,6 +63,7 @@ func (r *TRaeFikJueTun) PreloadImportConfig(config *logic.Config) (err error) {
 	}
 	return
 }
+
 func (r *TRaeFikJueTun) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 
 	var (
@@ -71,7 +75,6 @@ func (r *TRaeFikJueTun) ServeHTTP(response http.ResponseWriter, request *http.Re
 		http.Error(response, errMsg, http.StatusInternalServerError)
 		return
 	}
-
 	switch urlParam.PathType {
 	case pkg.RouteTypeAdmin:
 		logicOp := logic.NewRouteTypeAdminLogic(logic.OptionsAdminHandlerBase(r.getBaseLogic(response, request, urlParam, mapHandlerConfig[pkg.RouteTypeAdmin])))
@@ -105,10 +108,10 @@ func (r *TRaeFikJueTun) ServeHTTP(response http.ResponseWriter, request *http.Re
 		r.Next.ServeHTTP(response, request)
 	}
 }
+
 func (r *TRaeFikJueTun) loadConfig(logicOp *logic.RouteTypeAdminLogic, response http.ResponseWriter) (exit bool) {
-	if errCode, errMsg := logicOp.LoadUrlConfig(); errCode != 0 {
-		exit = true
-		http.Error(response, errMsg, http.StatusInternalServerError)
+
+	if logicOp.UriParam.AppName != pkg.RouteTypeGateway {
 		return
 	}
 	type Result struct {
@@ -117,10 +120,19 @@ func (r *TRaeFikJueTun) loadConfig(logicOp *logic.RouteTypeAdminLogic, response 
 		Msg  string      `json:"message"`
 	}
 	var Res = Result{Msg: "路由规则更新成功"}
-	var bt []byte
-	bt, _ = json.Marshal(Res)
+	defer func() {
+		if exit {
+			var bt []byte
+			bt, _ = json.Marshal(Res)
+			http.Error(response, string(bt), http.StatusOK)
+		}
+	}()
+	if errCode, errMsg := logicOp.LoadUrlConfig(); errCode != 0 {
+		exit = true
+		Res.Msg = errMsg
+		return
+	}
 	exit = true
-	http.Error(response, string(bt), http.StatusOK)
 	return
 }
 
