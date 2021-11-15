@@ -38,6 +38,24 @@ type (
 	}
 )
 
+func NewRouterConfig(configRouterPermit *RouterConfig) (res *RouterConfig) {
+	if configRouterPermit == nil {
+		configRouterPermit = &RouterConfig{
+			RouterNotNeedSign:  map[string]*RouterNotNeedItem{},
+			RouterNotNeedLogin: map[string]*RouterNotNeedItem{},
+		}
+	}
+
+	if configRouterPermit.RouterNotNeedLogin == nil {
+		configRouterPermit.RouterNotNeedLogin = map[string]*RouterNotNeedItem{}
+	}
+	if configRouterPermit.RouterNotNeedSign == nil {
+		configRouterPermit.RouterNotNeedSign = map[string]*RouterNotNeedItem{}
+	}
+
+	return configRouterPermit
+}
+
 // MathValidateType 获取当前路径的校验规则
 func (r *RouterConfig) MathValidateType(uriParam *UriParam) (notNeedSign, notNeedLogin bool, err error) {
 

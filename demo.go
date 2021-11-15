@@ -31,25 +31,29 @@ type TRaeFikJueTun struct {
 
 // New created a new Demo plugin.
 func New(ctx context.Context, next http.Handler, config *logic.Config, name string) (httpHandler http.Handler, err error) {
+
 	tRaeFikJueTun := &TRaeFikJueTun{
 		Ctx:  ctx,
 		Next: next,
 	}
+
 	// 初始化获取接口不需要登录，和不需要签名验证的接口列表
-	if err = tRaeFikJueTun.PreloadImportConfig(); err != nil {
+	if err = tRaeFikJueTun.PreloadImportConfig(config); err != nil {
 		return
 	}
 
 	config.TraefikConfigPluginName = name
 	mapHandlerConfig[config.RouterType] = config
+
 	// 初始化获取权限操作对象
 	logic.GrpcGet = permit_get.NewGrpcGet()
 	logic.HttpGet = permit_get.NewHttpGet()
 	return tRaeFikJueTun, err
 }
 
-func (r *TRaeFikJueTun) PreloadImportConfig() (err error) {
-	routeTypeBaseLogic := logic.RouteTypeBaseLogic{}
+// PreloadImportConfig 预状态不需要签名验证 和不需要登录的接口列表
+func (r *TRaeFikJueTun) PreloadImportConfig(config *logic.Config) (err error) {
+	routeTypeBaseLogic := logic.RouteTypeBaseLogic{PluginConfig: config}
 	errCode, errMsg := routeTypeBaseLogic.RefreshConfigRouterPermit()
 	if errCode != 0 {
 		err = fmt.Errorf(errMsg)

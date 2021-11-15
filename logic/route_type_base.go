@@ -17,8 +17,11 @@ import (
 )
 
 var (
-	GrpcGet            pkg.PermitGet
+
+	GrpcGet pkg.PermitGet
+
 	HttpGet            pkg.PermitGet
+
 	ConfigRouterPermit *pkg.RouterConfig // 当前系统支持的路由权限
 )
 
@@ -32,8 +35,8 @@ type (
 		PathConfig              PathConfig `json:"pathconfig,omitempty"`
 	}
 	PathConfig struct {
-		Host    string `json:"host,omitempty"` // 获取不需要签名验证和登录验证的接口地址调用接口来源host
-		AppName string `json:"app,omitempty"`  // 获取不需要签名验证和登录验证的接口地址调用接口应用路径
+		Host string `json:"host,omitempty"` // 获取不需要签名验证和登录验证的接口地址调用接口来源host
+		App  string `json:"app,omitempty"`  // 获取不需要签名验证和登录验证的接口地址调用接口应用路径
 	}
 	RouteTypeBaseLogic struct {
 		Response     http.ResponseWriter `json:"-"`
@@ -66,36 +69,30 @@ func (r *RouteTypeBaseLogic) LoadUrlConfig() (errCode int, errMsg string) {
 	return
 }
 func (r *RouteTypeBaseLogic) RefreshConfigRouterPermit(appNames ...string) (errCode int, errMsg string) {
+
 	var newConfigRouter *pkg.RouterConfig
 	if newConfigRouter, errCode, errMsg = r.GetUrlConfigFromDashboardAdmin(appNames...); errCode != 0 {
 		return
 	}
 	// 更新路由配置数据时加锁 防止数据串改
-	var lock sync.RWMutex
+	var lock sync.Mutex
 	lock.Lock()
 	defer func() {
 		lock.Unlock()
 	}()
 
+	ConfigRouterPermit = pkg.NewRouterConfig(ConfigRouterPermit)
+
 	// 组织不需要签名的接口列表
-	if newConfigRouter.RouterNotNeedSign != nil {
-		for appName, item := range newConfigRouter.RouterNotNeedSign {
-			if ConfigRouterPermit.RouterNotNeedSign == nil {
-				ConfigRouterPermit.RouterNotNeedSign = map[string]*pkg.RouterNotNeedItem{}
-			}
-			ConfigRouterPermit.RouterNotNeedSign[appName] = item
-		}
+	for appName, item := range newConfigRouter.RouterNotNeedSign {
+		ConfigRouterPermit.RouterNotNeedSign[appName] = item
 	}
 
 	// 组织不需要登录的接口列表
-	if newConfigRouter.RouterNotNeedLogin != nil {
-		for appName, item := range newConfigRouter.RouterNotNeedLogin {
-			if ConfigRouterPermit.RouterNotNeedLogin == nil {
-				ConfigRouterPermit.RouterNotNeedLogin = map[string]*pkg.RouterNotNeedItem{}
-			}
-			ConfigRouterPermit.RouterNotNeedLogin[appName] = item
-		}
+	for appName, item := range newConfigRouter.RouterNotNeedLogin {
+		ConfigRouterPermit.RouterNotNeedLogin[appName] = item
 	}
+
 	return
 }
 func (r *RouteTypeBaseLogic) GetUrlConfigFromDashboardAdmin(appName ...string) (res *pkg.RouterConfig, errCode int, errMsg string) {
@@ -118,23 +115,36 @@ func (r *RouteTypeBaseLogic) GetUrlConfigFromDashboardAdmin(appName ...string) (
 }
 func (r *RouteTypeBaseLogic) getAddr(apps ...string) (reqAddress string) {
 	appName := strings.Join(apps, ",")
+
 	if appName == "" {
 		reqAddress = fmt.Sprintf("%s/%s/in/get_import_permit",
 			r.PluginConfig.PathConfig.Host,
-			r.PluginConfig.PathConfig.AppName)
+			r.PluginConfig.PathConfig.App)
+
 	} else {
 		reqAddress = fmt.Sprintf(
 			"%s/%s/in/get_import_permit?app_name=%s",
 			r.PluginConfig.PathConfig.Host,
-			r.PluginConfig.PathConfig.AppName,
+			r.PluginConfig.PathConfig.App,
 			appName,
 		)
 	}
 	return
 }
 func (r *RouteTypeBaseLogic) HttpGetUrlConfig(data interface{}, apps ...string) (err error) {
-
 	var reqAddress = r.getAddr(apps...)
+	logContent := map[string]interface{}{
+		"apps":       apps,
+		"reqAddress": reqAddress,
+	}
+	defer func() {
+		_ = logContent
+		// if err != nil {
+		// 	log.Printf("RouteTypeBaseLogicHttpGetUrlConfig:%+v\n", logContent)
+		// 	return
+		// }
+		// log.Printf("RouteTypeBaseLogicHttpGetUrlConfig:%+v\n", logContent)
+	}()
 	var client = &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, netW, addr string) (conn net.Conn, e error) {
@@ -153,6 +163,7 @@ func (r *RouteTypeBaseLogic) HttpGetUrlConfig(data interface{}, apps ...string) 
 	var resp *http.Response
 	var body []byte
 	if resp, err = client.Do(req); err != nil {
+		logContent["desc"] = "reqDo"
 		return
 	}
 	defer func() {
@@ -160,13 +171,18 @@ func (r *RouteTypeBaseLogic) HttpGetUrlConfig(data interface{}, apps ...string) 
 			_ = resp.Body.Close()
 		}
 	}()
+
 	if resp.StatusCode != http.StatusOK {
+		logContent["desc"] = "StatusCode error"
 		return
 	}
 	if body, err = ioutil.ReadAll(resp.Body); err != nil {
+		logContent["desc"] = "Read body error"
 		return
 	}
+	logContent["body"] = string(body)
 	if err = json.Unmarshal(body, data); err != nil {
+		logContent["desc"] = "Unmarshal json error"
 		return
 	}
 	return
