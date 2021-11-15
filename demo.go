@@ -22,26 +22,29 @@ type TRaeFikJueTun struct {
 	Ctx  context.Context
 }
 
-// CreateConfig creates the default plugin configuration.
-func CreateConfig() *logic.Config {
-	return &logic.Config{
-		Headers: make(map[string]string),
-	}
-}
-
 // New created a new Demo plugin.
 func New(ctx context.Context, next http.Handler, config *logic.Config, name string) (httpHandler http.Handler, err error) {
-	httpHandler = &TRaeFikJueTun{
+	tRaeFikJueTun := &TRaeFikJueTun{
 		Ctx:  ctx,
 		Next: next,
 	}
+	err = tRaeFikJueTun.PreloadImportConfig()
+	config.TraefikConfigPluginName = name
 	mapHandlerConfig[config.RouterType] = config
 	// 初始化获取权限操作对象
 	logic.GrpcGet = permit_get.NewGrpcGet()
 	logic.HttpGet = permit_get.NewHttpGet()
-	return
+	return tRaeFikJueTun, err
 }
 
+func (r *TRaeFikJueTun) PreloadImportConfig() (err error) {
+	routeTypeBaseLogic := logic.RouteTypeBaseLogic{}
+	errCode, errMsg := routeTypeBaseLogic.RefreshConfigRouterPermit()
+	if errCode != 0 {
+		err = fmt.Errorf(errMsg)
+	}
+	return
+}
 func (r *TRaeFikJueTun) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 
 	var (
@@ -105,6 +108,7 @@ func (r *TRaeFikJueTun) loadConfig(logicOp *logic.RouteTypeAdminLogic, response 
 	http.Error(response, string(bt), http.StatusOK)
 	return
 }
+
 func (r *TRaeFikJueTun) getBaseLogic(response http.ResponseWriter, request *http.Request, urlParam *pkg.UriParam, config *logic.Config) (base *logic.RouteTypeBaseLogic) {
 	base = logic.NewRouteTypeBaseLogic(
 		logic.OptionsHandlerPluginCtx(r.Ctx),

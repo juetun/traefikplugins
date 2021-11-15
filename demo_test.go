@@ -7,15 +7,16 @@ import (
 	"testing"
 
 	"github.com/juetun/traefikplugins"
+	"github.com/juetun/traefikplugins/logic"
 )
 
+// CreateConfig creates the default plugin configuration.
+func CreateConfig() *logic.Config {
+	return &logic.Config{}
+}
+
 func TestDemo(t *testing.T) {
-	cfg := traefikplugins.CreateConfig()
-	cfg.Headers["X-Host"] = "[[.Host]]"
-	cfg.Headers["X-Method"] = "[[.Method]]"
-	cfg.Headers["X-URL"] = "[[.URL]]"
-	cfg.Headers["X-URL"] = "[[.URL]]"
-	cfg.Headers["X-Demo"] = "test"
+	cfg := CreateConfig()
 
 	ctx := context.Background()
 	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
@@ -44,6 +45,6 @@ func assertHeader(t *testing.T, req *http.Request, key, expected string) {
 	t.Helper()
 
 	if req.Header.Get(key) != expected {
-		t.Errorf("invalid header value: %s expected:%s", req.Header.Get(key),expected)
+		t.Errorf("invalid header value: %s expected:%s", req.Header.Get(key), expected)
 	}
 }
