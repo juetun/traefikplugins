@@ -2,10 +2,13 @@ package logic
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net"
 	"net/http"
-	"strings"
 	"sync"
+	"time"
 
 	"github.com/juetun/traefikplugins/logic/sign"
 	"github.com/juetun/traefikplugins/pkg"
@@ -14,16 +17,16 @@ import (
 var (
 	GrpcGet            pkg.PermitGet
 	HttpGet            pkg.PermitGet
-	ConfigRouterPermit pkg.RouterConfig // 当前系统支持的路由权限
+	ConfigRouterPermit *pkg.RouterConfig // 当前系统支持的路由权限
 )
 
 // Config the plugin configuration.
 type (
 	Config struct {
-		PermitSupportGrpc bool              `json:"permit_support_grpc"` // 获取接口权限是否支持grpc
-		PermitValidate    string            `json:"permit_validate"`     // 是否需要签名验证
-		AppEnv            string            `json:"app_env,omitempty"`   // 运行环境
-		RouterType        string            `json:"router_type,omitempty"`
+		PermitSupportGrpc bool              `json:"permitsupportgrpc"` // 获取接口权限是否支持grpc
+		PermitValidate    string            `json:"permitvalidate"`    // 是否需要签名验证
+		AppEnv            string            `json:"appenv,omitempty"`  // 运行环境
+		RouterType        string            `json:"routertype,omitempty"`
 		Headers           map[string]string `json:"headers,omitempty"`
 	}
 	RouteTypeBaseLogic struct {
@@ -32,64 +35,114 @@ type (
 		Next         http.Handler        `json:"-"`
 		Ctx          context.Context     `json:"-"`
 		PluginConfig *Config             `json:"plugin_config"`
-		Name         string              `json:"name"`
-		UriParam     pkg.UriParam        `json:"uri"` // 当前接口的访问路径
+		// Name         string              `json:"name"`
+		UriParam *pkg.UriParam `json:"uri"` // 当前接口的访问路径
 	}
 )
 
-func (r *RouteTypeBaseLogic) ParseUriParam() (errCode int, errMessage string) {
-	r.UriParam = pkg.UriParam{
-		Method:  r.Request.Method,
-		UserHid: r.Request.Header.Get(pkg.HttpUserHid),
-	}
-	const divString = "/"
-	var pathSlice = make([]string, 0, 10)
-	path := strings.Split(r.Request.RequestURI, divString)
-	l := len(path)
-	pathSlice = path[0:]
-	switch l {
-	case 0:
-		pathSlice[0] = ""
-		pathSlice[1] = ""
-		pathSlice[2] = ""
-	case 1:
-		pathSlice[1] = ""
-		pathSlice[2] = ""
-	case 2:
-		pathSlice[2] = ""
-	}
-	r.UriParam.AppName = pathSlice[0]
-	r.UriParam.PathType = pathSlice[1]
-	pathSlice = pathSlice[2:]
-	r.UriParam.Uri = strings.Join(pathSlice, divString)
-	if r.UriParam.AppName == "" || r.UriParam.PathType == "" || r.UriParam.Uri == "" {
-		errCode = pkg.GateWayPathError
-		errMessage = fmt.Sprintf(pkg.MapGatewayError[errCode], r.Request.RequestURI)
-		return
-	}
-	return
-}
-
 func (r *RouteTypeBaseLogic) LoadUrlConfig() (errCode int, errMsg string) {
 
-	if r.UriParam.AppName !=  pkg.RouteTypeGateway {
+	if r.UriParam.AppName != pkg.RouteTypeGateway {
 		return
 	}
+
 	if r.UriParam.Method != http.MethodHead {
 		errCode = pkg.GateWayLoadConfigError
 		errMsg = fmt.Sprintf(pkg.MapGatewayError[errCode], "METHOD")
 		return
 	}
-	if r.UriParam.Uri != "" {
 
+	if r.UriParam.Uri != "/load_config" {
+		errCode = pkg.GateWayLoadConfigError
+		errMsg = fmt.Sprintf(pkg.MapGatewayError[errCode], "当前不支持你访问的接口路径")
+		return
 	}
-	var newConfigRouter pkg.RouterConfig
+
+	var newConfigRouter *pkg.RouterConfig
+	if newConfigRouter, errCode, errMsg = r.getUrlConfigFromDashboardAdmin(); errCode != 0 {
+		return
+	}
+
+	// 更新路由配置数据时加锁 防止数据串改
 	var lock sync.RWMutex
 	lock.Lock()
 	defer func() {
 		lock.Unlock()
 	}()
-	ConfigRouterPermit = newConfigRouter
+
+	if newConfigRouter.RouterNotNeedSign != nil {
+		for appName, item := range newConfigRouter.RouterNotNeedSign {
+			if ConfigRouterPermit.RouterNotNeedSign == nil {
+				ConfigRouterPermit.RouterNotNeedSign = map[string]*pkg.RouterNotNeedItem{}
+			}
+			ConfigRouterPermit.RouterNotNeedSign[appName] = item
+		}
+	}
+	if newConfigRouter.RouterNotNeedLogin != nil {
+		for appName, item := range newConfigRouter.RouterNotNeedLogin {
+			if ConfigRouterPermit.RouterNotNeedLogin == nil {
+				ConfigRouterPermit.RouterNotNeedLogin = map[string]*pkg.RouterNotNeedItem{}
+			}
+			ConfigRouterPermit.RouterNotNeedLogin[appName] = item
+		}
+	}
+	return
+}
+
+func (r *RouteTypeBaseLogic) getUrlConfigFromDashboardAdmin() (res *pkg.RouterConfig, errCode int, errMsg string) {
+	type MyJsonName struct {
+		Code    int64             `json:"code"`
+		Data    *pkg.RouterConfig `json:"data"`
+		Message string            `json:"message"`
+	}
+
+	var (
+		err error
+		Res MyJsonName
+	)
+
+	if err = r.HttpGetUrlConfig(&Res); err != nil {
+		return
+	}
+	res = Res.Data
+	return
+}
+
+func (r *RouteTypeBaseLogic) HttpGetUrlConfig(data interface{}) (err error) {
+	var client = &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, netW, addr string) (conn net.Conn, e error) {
+				conn, e = net.DialTimeout(netW, addr, time.Second*3)
+				if e != nil {
+					return
+				}
+				return
+			},
+			MaxIdleConnsPerHost:   10,
+			ResponseHeaderTimeout: time.Second * 2,
+		},
+	}
+	var req *http.Request
+	req, err = http.NewRequest(http.MethodGet, fmt.Sprintf("%s/admin-main/in/get_import_permit","http://localhost:8089"), nil)
+	var resp *http.Response
+	var body []byte
+	if resp, err = client.Do(req); err != nil {
+		return
+	}
+	defer func() {
+		if resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	if resp.StatusCode != http.StatusOK {
+		return
+	}
+	if body, err = ioutil.ReadAll(resp.Body); err != nil {
+		return
+	}
+	if err = json.Unmarshal(body, data); err != nil {
+		return
+	}
 	return
 }
 
@@ -106,16 +159,6 @@ func (r *RouteTypeBaseLogic) CommonLogic() (exit bool) {
 		errCode int
 		errMsg  string
 	)
-
-	// 拆分Path路径
-	if errCode, errMsg = r.ParseUriParam(); errCode != 0 {
-		if errMsg == "" {
-			errMsg = pkg.MapGatewayError[errCode]
-		}
-		exit = true
-		http.Error(r.Response, errMsg, http.StatusOK)
-		return
-	}
 
 	// 判断是否不需要登录
 	if errCode, errMsg = r.FlagHavePermit(); errCode != 0 {
@@ -134,9 +177,9 @@ func (r *RouteTypeBaseLogic) CommonLogic() (exit bool) {
 func (r *RouteTypeBaseLogic) FlagHavePermit() (errCode int, errMsg string) {
 	var res pkg.PermitGetResult
 	if r.PluginConfig.PermitSupportGrpc { // 获取接口需要验证的权限
-		res, errCode, errMsg = GrpcGet.Do(&r.UriParam)
+		res, errCode, errMsg = GrpcGet.Do(r.UriParam)
 	} else { // 获取接口需要验证的权限
-		res, errCode, errMsg = HttpGet.Do(&r.UriParam)
+		res, errCode, errMsg = HttpGet.Do(r.UriParam)
 	}
 	if errCode != 0 {
 		return
@@ -188,11 +231,13 @@ func OptionsHandlerPluginCtx(ctx context.Context) OptionsHandler {
 		rbc.Ctx = ctx
 	}
 }
-func OptionsHandlerPluginName(name string) OptionsHandler {
-	return func(rbc *RouteTypeBaseLogic) {
-		rbc.Name = name
-	}
-}
+
+// func OptionsHandlerPluginName(name string) OptionsHandler {
+// 	return func(rbc *RouteTypeBaseLogic) {
+// 		rbc.Name = name
+// 	}
+// }
+
 func OptionsHandlerPluginConfig(PluginConfig *Config) OptionsHandler {
 	return func(rbc *RouteTypeBaseLogic) {
 		rbc.PluginConfig = PluginConfig
@@ -211,6 +256,11 @@ func OptionsHandlerRequest(request *http.Request) OptionsHandler {
 func OptionsHandlerResponse(Response http.ResponseWriter) OptionsHandler {
 	return func(rbc *RouteTypeBaseLogic) {
 		rbc.Response = Response
+	}
+}
+func OptionsHandlerUrlParam(uriParam *pkg.UriParam) OptionsHandler {
+	return func(rbc *RouteTypeBaseLogic) {
+		rbc.UriParam = uriParam
 	}
 }
 

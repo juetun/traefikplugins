@@ -25,13 +25,16 @@ type (
 	}
 
 	RouterConfig struct {
-		RouterNotNeedSign  map[string]*RouterNotNeedItem `json:"router_not_need_sign"`  // 不需要签名验证的路由权限
-		RouterNotNeedLogin map[string]*RouterNotNeedItem `json:"router_not_need_login"` // 不需要登录的路由权限
+		RouterNotNeedSign  map[string]*RouterNotNeedItem `json:"not_sign"`  // 不需要签名验证的路由权限
+		RouterNotNeedLogin map[string]*RouterNotNeedItem `json:"not_login"` // 不需要登录的路由权限
 	}
-
 	RouterNotNeedItem struct {
-		GeneralPath map[string]string `json:"general_path"` // 普通路径
-		RegexpPath  []string          `json:"regexp_path"`  // 按照正则匹配的路径
+		GeneralPath map[string]ItemGateway `json:"general,omitempty"` // 普通路径
+		RegexpPath  []ItemGateway          `json:"regexp,omitempty"`  // 按照正则匹配的路径
+	}
+	ItemGateway struct {
+		Uri     string   `json:"url,omitempty"`
+		Methods []string `json:"method,omitempty"`
 	}
 )
 
@@ -63,7 +66,7 @@ func (r *RouterConfig) notNeedSignValidate(uriParam *UriParam) (notNeedSign bool
 	}
 
 	for _, item := range dt.RegexpPath {
-		if match, err = r.routePathMath(item, uriParam.RegexpUri); err != nil {
+		if match, err = r.routePathMath(&item, uriParam.RegexpUri); err != nil {
 			return
 		}
 		if match {
@@ -91,7 +94,7 @@ func (r *RouterConfig) notNeedLoginValidate(uriParam *UriParam) (notNeedLogin bo
 	}
 
 	for _, item := range dt.RegexpPath {
-		if match, err = r.routePathMath(item, uriParam.RegexpUri); err != nil {
+		if match, err = r.routePathMath(&item, uriParam.RegexpUri); err != nil {
 			return
 		}
 		if match {
@@ -102,7 +105,7 @@ func (r *RouterConfig) notNeedLoginValidate(uriParam *UriParam) (notNeedLogin bo
 
 	return
 }
-func (r *RouterConfig) routePathMath(regexpString, path string) (matched bool, err error) {
-	matched, err = regexp.Match(regexpString, []byte(path))
+func (r *RouterConfig) routePathMath(reg *ItemGateway, path string) (matched bool, err error) {
+	matched, err = regexp.Match(reg.Uri, []byte(path))
 	return
 }

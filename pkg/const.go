@@ -3,8 +3,8 @@ package pkg
 const (
 	RouteTypeGateway  = "gateway"
 	RouteTypeAdmin    = "admin"
-	RouteTypeIntranet = "intranet"
-	RouteTypeOuternet = "outernet"
+	RouteTypeIntranet = "in"
+	RouteTypeOuternet = "out"
 	RouteTypePage     = "page"
 )
 const (
