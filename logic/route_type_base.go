@@ -116,10 +116,7 @@ func (r *RouteTypeBaseLogic) GetUrlConfigFromDashboardAdmin(appName ...string) (
 	res = Res.Data
 	return
 }
-
-func (r *RouteTypeBaseLogic) HttpGetUrlConfig(data interface{}, apps ...string) (err error) {
-
-	var reqAddress string
+func (r *RouteTypeBaseLogic) getAddr(apps ...string) (reqAddress string) {
 	appName := strings.Join(apps, ",")
 	if appName == "" {
 		reqAddress = fmt.Sprintf("%s/%s/in/get_import_permit",
@@ -133,6 +130,11 @@ func (r *RouteTypeBaseLogic) HttpGetUrlConfig(data interface{}, apps ...string) 
 			appName,
 		)
 	}
+	return
+}
+func (r *RouteTypeBaseLogic) HttpGetUrlConfig(data interface{}, apps ...string) (err error) {
+
+	var reqAddress = r.getAddr(apps...)
 	var client = &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, netW, addr string) (conn net.Conn, e error) {

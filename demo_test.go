@@ -7,16 +7,11 @@ import (
 	"testing"
 
 	"github.com/juetun/traefikplugins"
-	"github.com/juetun/traefikplugins/logic"
 )
 
-// CreateConfig creates the default plugin configuration.
-func CreateConfig() *logic.Config {
-	return &logic.Config{}
-}
 
 func TestDemo(t *testing.T) {
-	cfg := CreateConfig()
+	cfg := traefikplugins.CreateConfig()
 
 	ctx := context.Background()
 	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})

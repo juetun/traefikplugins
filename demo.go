@@ -16,6 +16,13 @@ import (
 
 var mapHandlerConfig = map[string]*logic.Config{}
 
+// CreateConfig creates the default plugin configuration.
+func CreateConfig() *logic.Config {
+	return &logic.Config{
+		PathConfig: logic.PathConfig{},
+	}
+}
+
 // TRaeFikJueTun 网站插件
 type TRaeFikJueTun struct {
 	Next http.Handler
@@ -28,7 +35,11 @@ func New(ctx context.Context, next http.Handler, config *logic.Config, name stri
 		Ctx:  ctx,
 		Next: next,
 	}
-	err = tRaeFikJueTun.PreloadImportConfig()
+	// 初始化获取接口不需要登录，和不需要签名验证的接口列表
+	if err = tRaeFikJueTun.PreloadImportConfig(); err != nil {
+		return
+	}
+
 	config.TraefikConfigPluginName = name
 	mapHandlerConfig[config.RouterType] = config
 	// 初始化获取权限操作对象
