@@ -31,7 +31,7 @@ type (
 		TraefikConfigPluginName string     `json:"traefik_config_plugin_name"`
 		AppEnv                  string     `json:"appenv,omitempty"` // 运行环境
 		RouterType              string     `json:"routertype,omitempty"`
- 		PathConfig              PathConfig `json:"pathconfig,omitempty"`
+		PathConfig              PathConfig `json:"pathconfig,omitempty"`
 	}
 	PathConfig struct {
 		Host string `json:"host,omitempty"` // 获取不需要签名验证和登录验证的接口地址调用接口来源host
@@ -47,6 +47,7 @@ type (
 	}
 )
 
+// LoadUrlConfig http://api.test.com/gateway/admin/load_config (GET)
 func (r *RouteTypeBaseLogic) LoadUrlConfig() (errCode int, errMsg string) {
 
 	if r.UriParam.Method != http.MethodGet {
@@ -86,7 +87,7 @@ func (r *RouteTypeBaseLogic) RefreshConfigRouterPermit(appNames ...string) (errC
 
 	// 组织不需要登录的接口列表
 	for appName, item := range newConfigRouter.RouterNotNeedLogin {
-		log.Printf("RouterNotNeedLoginappName:%s", appName)
+		log.Printf("RouterNotNeedLoginappName:%+v \n %s \n %+v \n", ConfigRouterPermit, appName, item)
 		ConfigRouterPermit.RouterNotNeedLogin[appName] = item
 	}
 
@@ -289,7 +290,6 @@ func (r *RouteTypeBaseLogic) FlagHavePermit() (errCode int, errMsg string) {
 			return
 		}
 	}
-
 
 	return
 }
